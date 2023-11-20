@@ -46,6 +46,7 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 int countdown = 5000;
+int originalTime = countdown;
 int	servoState = 0;
 int buttonState = 0;
 int lastButtonState = 1;
@@ -59,6 +60,7 @@ static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 void showTimer(void);
 void openBox(void);
+void setTimer(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -108,10 +110,34 @@ int main(void)
   while (1)
   {
 
-	  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_RESET){
+	  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_RESET && countdown > 0){
+		  //Close servo during timer countdown
+		  __HAL_TIM_SET_COMPARE(&htim2,TIM_CHANNEL_2, 3600);
+
 		  showTimer();
 		  countdown -= 1000;
 	  }
+	  //If the timer reaches zero and the user is not setting the time
+	  else if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_RESET && countdown == 0){
+		  //Display message saying to take medicine
+
+		  // Lcd_PortType ports[] = { D4_GPIO_Port, D5_GPIO_Port, D6_GPIO_Port, D7_GPIO_Port };
+		  Lcd_PortType ports[] = { GPIOB, GPIOB, GPIOA, GPIOA };
+		  // Lcd_PinType pins[] = {D4_Pin, D5_Pin, D6_Pin, D7_Pin};
+		  Lcd_PinType pins[] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_2, GPIO_PIN_10};
+		  Lcd_HandleTypeDef lcd;
+		  // Lcd_create(ports, pins, RS_GPIO_Port, RS_Pin, EN_GPIO_Port, EN_Pin, LCD_4_BIT_MODE);
+		  lcd = Lcd_create(ports, pins, GPIOA, GPIO_PIN_9, GPIOA, GPIO_PIN_8, LCD_4_BIT_MODE);
+		  Lcd_cursor(&lcd, 0,1);
+		  Lcd_string(&lcd, "Take Meds!");
+
+		  //Open box if button is pressed
+		  openBox();
+	  }
+	  else if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_SET){
+		  setTimer();
+	  }
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -342,9 +368,39 @@ void showTimer(void){
 		Lcd_int(&lcd, (countdown/(1000*60*60))%24);
 }
 
+void setTimer(void){
+
+		countdown = 0
+
+		// Lcd_PortType ports[] = { D4_GPIO_Port, D5_GPIO_Port, D6_GPIO_Port, D7_GPIO_Port };
+		Lcd_PortType ports[] = { GPIOB, GPIOB, GPIOA, GPIOA };
+		// Lcd_PinType pins[] = {D4_Pin, D5_Pin, D6_Pin, D7_Pin};
+		Lcd_PinType pins[] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_2, GPIO_PIN_10};
+		Lcd_HandleTypeDef lcd;
+		// Lcd_create(ports, pins, RS_GPIO_Port, RS_Pin, EN_GPIO_Port, EN_Pin, LCD_4_BIT_MODE);
+		lcd = Lcd_create(ports, pins, GPIOA, GPIO_PIN_9, GPIOA, GPIO_PIN_8, LCD_4_BIT_MODE);
+		Lcd_cursor(&lcd, 0,1);
+		Lcd_string(&lcd, "Set Time(H:M)");
+
+		Lcd_cursor(&lcd, 1,1);
+		//Hours:Min:Sec
+		Lcd_int(&lcd, (countdown/(1000*60))%60);
+		Lcd_int(&lcd, (countdown/(1000*60))%60);
+		Lcd_int(&lcd, (countdown/(1000*60*60))%24);
+}
+
 void openBox(void){
+	//Turn on buzzer, then turn off when button is pressed
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);
+
+	 if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_7) == GPIO_PIN_SET){
+		 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);
+	 }
+
+	//Determine if button is pressed
 	buttonState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_7);
 
+	// Check if the button state has changed (button press detected)
 	if (buttonState != lastButtonState) {
 	    // If the button is pressed (LOW), and the servo is at 0 degrees, rotate it to 90 degrees
 	    if (buttonState == GPIO_PIN_RESET && servoState == 0) {
