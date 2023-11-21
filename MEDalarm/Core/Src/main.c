@@ -45,12 +45,13 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-int countdown = 3000;
-int originalTime = 3000;
+int countdown = 60000;
+int originalTime = 60000;
 int	servoState = 0;
 int buttonState = 0;
 int lastButtonState = 1;
 int complete = 0;
+int firstTime = 1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -115,11 +116,35 @@ int main(void)
 
 //	  //If the user is in set timer mode
 	  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_SET){
-		  setTimer();
+
+		  		__HAL_TIM_SET_COMPARE(&htim2,TIM_CHANNEL_2, 3600);
+
+		  		// Lcd_PortType ports[] = { D4_GPIO_Port, D5_GPIO_Port, D6_GPIO_Port, D7_GPIO_Port };
+		  		Lcd_PortType ports[] = { GPIOB, GPIOB, GPIOA, GPIOA };
+		  		// Lcd_PinType pins[] = {D4_Pin, D5_Pin, D6_Pin, D7_Pin};
+		  		Lcd_PinType pins[] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_5, GPIO_PIN_10};
+		  		Lcd_HandleTypeDef lcd;
+		  		// Lcd_create(ports, pins, RS_GPIO_Port, RS_Pin, EN_GPIO_Port, EN_Pin, LCD_4_BIT_MODE);
+		  		lcd = Lcd_create(ports, pins, GPIOA, GPIO_PIN_9, GPIOA, GPIO_PIN_8, LCD_4_BIT_MODE);
+		  		Lcd_cursor(&lcd, 0,1);
+		  		Lcd_string(&lcd, "Set Time(H:M)");
+
+		  		Lcd_cursor(&lcd, 1,1);
+		  		Lcd_int(&lcd, (countdown/3600000));
+		  		Lcd_string(&lcd, ":");
+		  		Lcd_int(&lcd, ((countdown/60000)%60));
+		  		HAL_Delay(500);
+
+		  		setTimer();
+
+		  		if(countdown != 0){
+		  			originalTime = countdown;
+		  		}
 	  }
 	  //If the countdown is going and user not in set time mode
 	  else if(countdown > 0){
 		  complete = 0;
+		  firstTime = 1;
 		  //Close servo during timer countdown
 		  __HAL_TIM_SET_COMPARE(&htim2,TIM_CHANNEL_2, 1000);
 
@@ -386,23 +411,10 @@ void showTimer(void){
 }
 
 void setTimer(void){
-		countdown = 0;
 
-		// Lcd_PortType ports[] = { D4_GPIO_Port, D5_GPIO_Port, D6_GPIO_Port, D7_GPIO_Port };
-		Lcd_PortType ports[] = { GPIOB, GPIOB, GPIOA, GPIOA };
-		// Lcd_PinType pins[] = {D4_Pin, D5_Pin, D6_Pin, D7_Pin};
-		Lcd_PinType pins[] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_5, GPIO_PIN_10};
-		Lcd_HandleTypeDef lcd;
-		// Lcd_create(ports, pins, RS_GPIO_Port, RS_Pin, EN_GPIO_Port, EN_Pin, LCD_4_BIT_MODE);
-		lcd = Lcd_create(ports, pins, GPIOA, GPIO_PIN_9, GPIOA, GPIO_PIN_8, LCD_4_BIT_MODE);
-		Lcd_cursor(&lcd, 0,1);
-		Lcd_string(&lcd, "Set Time(H:M)");
-
-
-		Lcd_cursor(&lcd, 1,1);
-		Lcd_int(&lcd, (countdown/3600000));
-		Lcd_string(&lcd, ":");
-		Lcd_int(&lcd, ((countdown/60000)%60));
+		if (firstTime == 1){
+			countdown = 0;
+		}
 
 		if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_7) == GPIO_PIN_SET){
 			countdown += 3600000;
@@ -411,7 +423,7 @@ void setTimer(void){
 			countdown += 60000;
 		}
 
-		originalTime = countdown;
+		firstTime = 0;
 }
 
 void openBox(void){
