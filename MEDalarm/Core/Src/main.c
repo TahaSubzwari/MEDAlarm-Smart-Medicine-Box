@@ -45,11 +45,12 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-int countdown = 5000;
-int originalTime = countdown;
+int countdown = 3000;
+int originalTime = 3000;
 int	servoState = 0;
 int buttonState = 0;
 int lastButtonState = 1;
+int complete = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -109,33 +110,47 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  openBox();
 
-	  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_RESET && countdown > 0){
+
+//	  //If the user is in set timer mode
+	  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_SET){
+		  setTimer();
+	  }
+	  //If the countdown is going and user not in set time mode
+	  else if(countdown > 0){
+		  complete = 0;
 		  //Close servo during timer countdown
-		  __HAL_TIM_SET_COMPARE(&htim2,TIM_CHANNEL_2, 3600);
+		  __HAL_TIM_SET_COMPARE(&htim2,TIM_CHANNEL_2, 1000);
 
 		  showTimer();
 		  countdown -= 1000;
+		  HAL_Delay(1000);
 	  }
+
 	  //If the timer reaches zero and the user is not setting the time
-	  else if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_RESET && countdown == 0){
+	  else if(countdown == 0){
 		  //Display message saying to take medicine
 
 		  // Lcd_PortType ports[] = { D4_GPIO_Port, D5_GPIO_Port, D6_GPIO_Port, D7_GPIO_Port };
 		  Lcd_PortType ports[] = { GPIOB, GPIOB, GPIOA, GPIOA };
 		  // Lcd_PinType pins[] = {D4_Pin, D5_Pin, D6_Pin, D7_Pin};
-		  Lcd_PinType pins[] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_2, GPIO_PIN_10};
+		  Lcd_PinType pins[] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_5, GPIO_PIN_10};
 		  Lcd_HandleTypeDef lcd;
 		  // Lcd_create(ports, pins, RS_GPIO_Port, RS_Pin, EN_GPIO_Port, EN_Pin, LCD_4_BIT_MODE);
 		  lcd = Lcd_create(ports, pins, GPIOA, GPIO_PIN_9, GPIOA, GPIO_PIN_8, LCD_4_BIT_MODE);
 		  Lcd_cursor(&lcd, 0,1);
 		  Lcd_string(&lcd, "Take Meds!");
 
+		  //Turn on buzzer, then turn off when button is pressed
+		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);
+
 		  //Open box if button is pressed
 		  openBox();
-	  }
-	  else if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_SET){
-		  setTimer();
+
+		  if(complete == 1){
+			  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);
+		  }
 	  }
 
     /* USER CODE END WHILE */
@@ -167,8 +182,8 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 16;
-  RCC_OscInitStruct.PLL.PLLN = 336;
+  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLN = 90;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
   RCC_OscInitStruct.PLL.PLLQ = 7;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -185,7 +200,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -301,16 +316,23 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8|GPIO_PIN_9, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PA5 PA8 PA9 PA10 */
+  GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PA6 PA7 */
   GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
@@ -331,13 +353,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA8 PA9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
   /*Configure GPIO pin : PB6 */
   GPIO_InitStruct.Pin = GPIO_PIN_6;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -352,9 +367,9 @@ static void MX_GPIO_Init(void)
 
 void showTimer(void){
 	// Lcd_PortType ports[] = { D4_GPIO_Port, D5_GPIO_Port, D6_GPIO_Port, D7_GPIO_Port };
-		Lcd_PortType ports[] = { GPIOB, GPIOB, GPIOA, GPIOA };
+		Lcd_PortType ports[] = { GPIOB, GPIOB, GPIOA, GPIOA};
 		// Lcd_PinType pins[] = {D4_Pin, D5_Pin, D6_Pin, D7_Pin};
-		Lcd_PinType pins[] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_2, GPIO_PIN_10};
+		Lcd_PinType pins[] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_5, GPIO_PIN_10};
 		Lcd_HandleTypeDef lcd;
 		// Lcd_create(ports, pins, RS_GPIO_Port, RS_Pin, EN_GPIO_Port, EN_Pin, LCD_4_BIT_MODE);
 		lcd = Lcd_create(ports, pins, GPIOA, GPIO_PIN_9, GPIOA, GPIO_PIN_8, LCD_4_BIT_MODE);
@@ -363,56 +378,66 @@ void showTimer(void){
 
 		Lcd_cursor(&lcd, 1,1);
 		//Hours:Min:Sec
-		Lcd_int(&lcd, (countdown/(1000*60))%60);
-		Lcd_int(&lcd, (countdown/(1000*60))%60);
-		Lcd_int(&lcd, (countdown/(1000*60*60))%24);
+		Lcd_int(&lcd, (countdown/3600000));
+		Lcd_string(&lcd, ":");
+		Lcd_int(&lcd, ((countdown/60000)%60));
+		Lcd_string(&lcd, ":");
+		Lcd_int(&lcd, ((countdown/1000)%60));
 }
 
 void setTimer(void){
-
-		countdown = 0
+		countdown = 0;
 
 		// Lcd_PortType ports[] = { D4_GPIO_Port, D5_GPIO_Port, D6_GPIO_Port, D7_GPIO_Port };
 		Lcd_PortType ports[] = { GPIOB, GPIOB, GPIOA, GPIOA };
 		// Lcd_PinType pins[] = {D4_Pin, D5_Pin, D6_Pin, D7_Pin};
-		Lcd_PinType pins[] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_2, GPIO_PIN_10};
+		Lcd_PinType pins[] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_5, GPIO_PIN_10};
 		Lcd_HandleTypeDef lcd;
 		// Lcd_create(ports, pins, RS_GPIO_Port, RS_Pin, EN_GPIO_Port, EN_Pin, LCD_4_BIT_MODE);
 		lcd = Lcd_create(ports, pins, GPIOA, GPIO_PIN_9, GPIOA, GPIO_PIN_8, LCD_4_BIT_MODE);
 		Lcd_cursor(&lcd, 0,1);
 		Lcd_string(&lcd, "Set Time(H:M)");
 
+
 		Lcd_cursor(&lcd, 1,1);
-		//Hours:Min:Sec
-		Lcd_int(&lcd, (countdown/(1000*60))%60);
-		Lcd_int(&lcd, (countdown/(1000*60))%60);
-		Lcd_int(&lcd, (countdown/(1000*60*60))%24);
+		Lcd_int(&lcd, (countdown/3600000));
+		Lcd_string(&lcd, ":");
+		Lcd_int(&lcd, ((countdown/60000)%60));
+
+		if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_7) == GPIO_PIN_SET){
+			countdown += 3600000;
+		}
+		else if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6) == GPIO_PIN_SET){
+			countdown += 60000;
+		}
+
+		originalTime = countdown;
 }
 
 void openBox(void){
-	//Turn on buzzer, then turn off when button is pressed
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);
-
-	 if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_7) == GPIO_PIN_SET){
-		 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);
-	 }
-
 	//Determine if button is pressed
 	buttonState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_7);
 
 	// Check if the button state has changed (button press detected)
 	if (buttonState != lastButtonState) {
 	    // If the button is pressed (LOW), and the servo is at 0 degrees, rotate it to 90 degrees
-	    if (buttonState == GPIO_PIN_RESET && servoState == 0) {
-	    	__HAL_TIM_SET_COMPARE(&htim2,TIM_CHANNEL_2, 1000);
+	    if (buttonState == GPIO_PIN_SET && servoState == 0) {
+	    	//turn off buzzer
+    		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);
+	    	__HAL_TIM_SET_COMPARE(&htim2,TIM_CHANNEL_2, 3600);
+	    	complete = 1;
 	    	servoState = 90; // Update the servo state
 	    }
 	    // If the button is pressed (LOW), and the servo is at 90 degrees, rotate it back to 0 degrees
-	    else if (buttonState == GPIO_PIN_RESET && servoState == 90) {
-	    	__HAL_TIM_SET_COMPARE(&htim2,TIM_CHANNEL_2, 3600);
+	    else if (buttonState == GPIO_PIN_SET && servoState == 90) {
+	    	//turn off buzzer
+    		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);
+	    	__HAL_TIM_SET_COMPARE(&htim2,TIM_CHANNEL_2, 1000);
 	    	servoState = 0; // Update the servo state
+	    	countdown = originalTime;
 	    }
 	  }
+
 	lastButtonState = buttonState;
 }
 
